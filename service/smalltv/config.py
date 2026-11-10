@@ -1,9 +1,19 @@
-"""Load and validate config.toml. Every site-specific value lives in that file."""
+"""Load and validate settings.
+
+config.toml holds every site-specific value. Changes made in the web dashboard are stored separately
+in a small JSON file (settings.json) layered on top, so config.toml itself is never rewritten.
+"""
+import copy
+import json
+import os
+import tempfile
 import tomllib
-from dataclasses import dataclass, field, fields
+from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
 
 DEJAVU = "/usr/share/fonts/truetype/dejavu"
+SCREENS = ("weather", "forecast", "clock", "hosts")
+THEMES = ("gradient", "dark")
 
 
 @dataclass
@@ -54,6 +64,14 @@ class Alerts:
 
 
 @dataclass
+class Web:
+    enabled: bool = True
+    bind: str = "0.0.0.0"
+    port: int = 8780
+    password: str = ""  # Set to require a password (HTTP basic auth, any user name).
+
+
+@dataclass
 class Host:
     name: str
     url: str        # http://host:8766/host.json from the collector, or file:///path/host.json
@@ -67,17 +85,27 @@ class Config:
     brightness: Brightness
     weather: Weather
     alerts: Alerts
+    web: Web
     hosts: list
 
 
-SCREENS = {"weather", "forecast", "clock", "hosts"}
+SECTIONS = {"device": Device, "display": Display, "brightness": Brightness, "weather": Weather,
+            "alerts": Alerts, "web": Web}
+
+# What the web dashboard may change. Everything else stays in config.toml only.
+EDITABLE = {
+    "device": {"madctl", "dwell_seconds"},
+    "display": {"theme", "clock_24h", "screens"},
+    "brightness": {"day", "night", "night_start", "night_end"},
+    "weather": {"enabled", "location", "state", "place_id", "station_id"},
+    "alerts": {"disk_percent", "memory_percent", "cpu_temp", "gpu_temp"},
+}
 
 
 def _build(cls, data, where):
     if not isinstance(data, dict):
         raise ValueError(f"[{where}] must be a table")
-    known = {f.name for f in fields(cls)}
-    unknown = set(data) - known
+    unknown = set(data) - {f.name for f in fields(cls)}
     if unknown:
         raise ValueError(f"[{where}] unknown setting(s): {', '.join(sorted(unknown))}")
     try:
@@ -86,27 +114,109 @@ def _build(cls, data, where):
         raise ValueError(f"[{where}] {error}") from None
 
 
-def load(path):
-    with open(Path(path), "rb") as f:
-        data = tomllib.load(f)
-    unknown = set(data) - {"device", "display", "brightness", "weather", "alerts", "hosts"}
+def _check(config):
+    d, b = config.display, config.brightness
+    if d.theme not in THEMES:
+        raise ValueError(f"[display] theme must be one of {THEMES}")
+    bad = set(d.screens) - set(SCREENS)
+    if bad:
+        raise ValueError(f"[display] screens: unknown {sorted(bad)}, choose from {list(SCREENS)}")
+    if not d.screens:
+        raise ValueError("[display] screens: choose at least one screen")
+    if len(set(d.screens)) != len(d.screens):
+        raise ValueError("[display] screens: each screen can appear once")
+    for name in ("day", "night"):
+        if not 0 <= getattr(b, name) <= 100:
+            raise ValueError(f"[brightness] {name} must be 0 to 100")
+    for name in ("night_start", "night_end"):
+        if not 0 <= getattr(b, name) <= 23:
+            raise ValueError(f"[brightness] {name} must be an hour from 0 to 23")
+    if not 3 <= config.device.dwell_seconds <= 600:
+        raise ValueError("[device] dwell_seconds must be 3 to 600")
+    if config.device.madctl not in (0, 8):
+        raise ValueError("[device] madctl must be 0 (RGB) or 8 (BGR)")
+    if config.weather.enabled and not (config.weather.location or config.weather.place_id):
+        raise ValueError("[weather] needs location or place_id when enabled")
+
+
+def from_dict(data):
+    unknown = set(data) - set(SECTIONS) - {"hosts"}
     if unknown:
         raise ValueError(f"unknown section(s): {', '.join(sorted(unknown))}")
     if "device" not in data:
         raise ValueError("[device] with host = \"...\" is required")
-    config = Config(
-        device=_build(Device, data["device"], "device"),
-        display=_build(Display, data.get("display", {}), "display"),
-        brightness=_build(Brightness, data.get("brightness", {}), "brightness"),
-        weather=_build(Weather, data.get("weather", {}), "weather"),
-        alerts=_build(Alerts, data.get("alerts", {}), "alerts"),
-        hosts=[_build(Host, h, f"hosts.{i}") for i, h in enumerate(data.get("hosts", []))],
-    )
-    if config.display.theme not in ("gradient", "dark"):
-        raise ValueError('[display] theme must be "gradient" or "dark"')
-    bad = set(config.display.screens) - SCREENS
-    if bad:
-        raise ValueError(f"[display] screens: unknown {sorted(bad)}, choose from {sorted(SCREENS)}")
-    if config.weather.enabled and not (config.weather.location or config.weather.place_id):
-        raise ValueError("[weather] needs location or place_id when enabled")
+    built = {name: _build(cls, data.get(name, {}), name) for name, cls in SECTIONS.items() if name != "device"}
+    built["device"] = _build(Device, data["device"], "device")
+    config = Config(**built, hosts=[_build(Host, h, f"hosts.{i}") for i, h in enumerate(data.get("hosts", []))])
+    _check(config)
     return config
+
+
+def read_toml(path):
+    with open(Path(path), "rb") as f:
+        return tomllib.load(f)
+
+
+def load(path):
+    return from_dict(read_toml(path))
+
+
+def merge(base, changes):
+    """Deep-merge two dicts of sections; values in changes win."""
+    result = copy.deepcopy(base)
+    for section, values in changes.items():
+        if isinstance(values, dict):
+            result.setdefault(section, {}).update(copy.deepcopy(values))
+        else:
+            result[section] = copy.deepcopy(values)
+    return result
+
+
+def editable(config):
+    """The settings the web dashboard shows and may change."""
+    return {section: {k: v for k, v in asdict(getattr(config, section)).items() if k in keys}
+            for section, keys in EDITABLE.items()}
+
+
+def check_editable(changes):
+    if not isinstance(changes, dict):
+        raise ValueError("settings must be an object")
+    for section, values in changes.items():
+        if section not in EDITABLE or not isinstance(values, dict):
+            raise ValueError(f"{section} cannot be changed from the dashboard")
+        blocked = set(values) - EDITABLE[section]
+        if blocked:
+            raise ValueError(f"[{section}] {', '.join(sorted(blocked))} cannot be changed from the dashboard")
+
+
+class Settings:
+    """config.toml plus the dashboard's overrides in settings.json."""
+
+    def __init__(self, config_path, overrides_path=None):
+        self.base = read_toml(config_path)
+        default = Path(config_path).resolve().parent / "settings.json"
+        self.path = Path(overrides_path or os.environ.get("SMALLTV_SETTINGS") or default)
+        self.overrides = {}
+        if self.path.is_file():
+            self.overrides = json.loads(self.path.read_text())
+
+    def current(self):
+        return from_dict(merge(self.base, self.overrides))
+
+    def update(self, changes):
+        check_editable(changes)
+        overrides = merge(self.overrides, changes)
+        config = from_dict(merge(self.base, overrides))  # validate before saving
+        self._save(overrides)
+        return config
+
+    def reset(self):
+        self._save({})
+        return self.current()
+
+    def _save(self, overrides):
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        with tempfile.NamedTemporaryFile("w", dir=self.path.parent, delete=False, suffix=".tmp") as f:
+            json.dump(overrides, f, indent=2)
+        os.replace(f.name, self.path)
+        self.overrides = overrides

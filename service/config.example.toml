@@ -34,6 +34,13 @@ refresh_minutes = [8, 38] # Minutes past each hour to fetch; BOM observations up
 alert_warnings = "severe|thunderstorm|flood|fire|heat|storm|cyclone"
 ignore_warnings = "cancel|marine|sheep|coastal waters"
 
+[web]
+# Web dashboard for live control: preview, brightness, theme, screens, weather location and more.
+enabled = true
+bind = "0.0.0.0"
+port = 8780
+password = ""   # set one to require it (any user name)
+
 [alerts]
 # A red alert screen appears between screens while any of these is true.
 disk_percent = 90

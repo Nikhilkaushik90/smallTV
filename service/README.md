@@ -52,16 +52,31 @@ python -m smalltv --config config.toml preview ./preview
 Then run it:
 
 ```bash
+mkdir -p data && sudo chown 1000:1000 data   # the dashboard saves your changes here
 docker compose up -d --build
 docker logs -f smalltv-dashboard
 ```
+
+## Web dashboard
+
+Open **`http://<dashboard-machine>:8780`**. From any phone or computer on your network you can:
+
+- **Watch** a live preview of what the display is showing, and see each update's speed
+- **Control rotation:** next screen, pause on the current screen, or jump to any screen
+- **Change settings instantly:** theme, clock format, time per screen, colour order, day and night brightness and hours, which screens rotate and in what order, BOM location (with search), observation station and alert thresholds
+- **Manage the display:** reset the screen, show colour bars, or restart it
+
+Changes are saved to `data/settings.json` on top of `config.toml`, which is never modified. **Reset settings** in the dashboard clears them. The device address, servers, fonts and the dashboard's own settings can only be changed in `config.toml`.
+
+Anyone who can reach port 8780 can use the dashboard. Set `[web] password` to require a password, or bind it to one address with `WEB_BIND`. Changing settings requires JSON requests, so other websites can't trigger actions through your browser.
 
 Other commands:
 
 ```bash
 python -m smalltv --config config.toml push-once        # push a single screen and exit
 python -m smalltv find-location "Parramatta"           # list BOM place names and ids
-python -m unittest discover -s tests                   # offline tests
+python -m unittest discover -s tests                   # offline tests (uses a fake display)
+python tests/fake_device.py 18080                       # fake display for trying the dashboard without hardware
 ```
 
 ## Configuration reference
@@ -73,6 +88,7 @@ python -m unittest discover -s tests                   # offline tests
 | `[brightness]` | `day`, `night`, `night_start`, `night_end` (hours) |
 | `[weather]` | `enabled`, `location`, `state`, optional `place_id` and `station_id`, `refresh_minutes`, `alert_warnings`, `ignore_warnings` |
 | `[alerts]` | `disk_percent`, `memory_percent`, `cpu_temp`, `gpu_temp`, `stale_seconds` |
+| `[web]` | `enabled`, `bind`, `port`, `password` |
 | `[[hosts]]` | `name`, `label`, `url`: `http://host:8766/host.json`, or `file:///path/host.json` if the dashboard can read the file directly |
 
 Unknown settings are rejected at startup with a clear message, so typos don't silently do nothing.

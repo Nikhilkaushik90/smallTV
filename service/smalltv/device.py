@@ -42,7 +42,8 @@ def encode_frame(pixels, width, height, x=0, y=0, compress=True):
 
 class Device:
     def __init__(self, host, timeout=15):
-        self.host = host
+        # host may include a port ("display.lan:8080"); the fast port comes from /status.
+        self.host = host.rsplit(":", 1)[0] if host.count(":") == 1 else host
         self.base = f"http://{host}"
         self.timeout = timeout
         self.frame_port = None  # Learned from /status; firmware 0.3.0 and later

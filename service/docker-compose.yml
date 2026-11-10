@@ -1,10 +1,11 @@
 # Dashboard service: renders screens and pushes them to the display.
 #   cp config.example.toml config.toml   # then edit it
 #   docker compose up -d --build
+# Web dashboard: http://<this-machine>:8780 (set [web] password in config.toml to protect it)
 services:
   smalltv-dashboard:
     build: .
-    image: smalltv-dashboard:0.2.0
+    image: smalltv-dashboard:0.3.0
     container_name: smalltv-dashboard
     restart: unless-stopped
     read_only: true
@@ -15,8 +16,13 @@ services:
     security_opt:
       - no-new-privileges:true
     mem_limit: 128m
+    ports:
+      - "${WEB_BIND:-0.0.0.0}:${WEB_PORT:-8780}:8780"
+    environment:
+      - SMALLTV_SETTINGS=/data/settings.json  # changes made in the web dashboard
     volumes:
       - ./config.toml:/config/config.toml:ro
+      - ./data:/data
     logging:
       driver: json-file
       options:

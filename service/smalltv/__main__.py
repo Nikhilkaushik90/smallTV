@@ -3,7 +3,7 @@ import argparse
 import logging
 import sys
 
-from . import __version__, config as config_module
+from . import __version__, config as config_module, web
 from .app import Dashboard
 from .bom import BomClient, state_of
 
@@ -31,7 +31,13 @@ def main(argv=None):
         return 0
 
     try:
-        cfg = config_module.load(args.config)
+        settings = config_module.Settings(args.config)
+        try:
+            cfg = settings.current()
+        except ValueError as error:
+            print(f"ignoring dashboard settings in {settings.path}: {error}", file=sys.stderr)
+            settings.overrides = {}
+            cfg = settings.current()
     except (OSError, ValueError) as error:
         print(f"config error: {error}", file=sys.stderr)
         return 2
@@ -43,6 +49,8 @@ def main(argv=None):
         dashboard.refresh_weather(force=True)
         dashboard.cycle()
     else:
+        if cfg.web.enabled:
+            web.start(dashboard, settings, cfg.web)
         dashboard.run()
     return 0
 

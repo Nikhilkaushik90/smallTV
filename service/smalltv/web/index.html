@@ -1,0 +1,527 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>SmallTV</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='3' y='5' width='26' height='20' rx='4' fill='%237c8cff'/%3E%3Crect x='7' y='9' width='18' height='12' rx='2' fill='%230b0f17'/%3E%3Crect x='12' y='26' width='8' height='2' rx='1' fill='%237c8cff'/%3E%3C/svg%3E">
+<style>
+:root {
+  --bg: #0a0d14; --panel: #111725; --panel-2: #161e2f; --line: rgba(255,255,255,.07); --line-2: rgba(255,255,255,.12);
+  --text: #e8ecf5; --muted: #8b95ab; --faint: #5d6780;
+  --accent: #7c8cff; --accent-2: #a78bfa; --ok: #34d399; --warn: #fbbf24; --bad: #f87171;
+  --radius: 18px; --radius-sm: 12px;
+  --shadow: 0 1px 0 rgba(255,255,255,.04) inset, 0 20px 40px -24px rgba(0,0,0,.8);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: radial-gradient(1200px 600px at 10% -10%, rgba(124,140,255,.12), transparent 60%),
+              radial-gradient(900px 500px at 110% 10%, rgba(167,139,250,.08), transparent 60%), var(--bg);
+  color: var(--text); font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Ubuntu, sans-serif;
+  min-height: 100vh; -webkit-font-smoothing: antialiased;
+}
+button, input, select { font: inherit; color: inherit; }
+.wrap { max-width: 1240px; margin: 0 auto; padding: 24px 20px 48px; }
+
+/* header */
+header { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 22px; }
+.brand { display: flex; align-items: center; gap: 12px; }
+.logo { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2)); box-shadow: 0 8px 24px -8px rgba(124,140,255,.6); }
+.logo span { width: 22px; height: 15px; border-radius: 3px; background: #0b0f17; }
+.brand h1 { font-size: 20px; margin: 0; letter-spacing: -.01em; }
+.brand p { margin: 0; color: var(--muted); font-size: 13px; }
+.pills { display: flex; gap: 8px; flex-wrap: wrap; }
+.pill { display: inline-flex; align-items: center; gap: 8px; padding: 7px 12px; border-radius: 999px;
+  background: var(--panel); border: 1px solid var(--line); font-size: 13px; color: var(--muted); white-space: nowrap; }
+.pill b { color: var(--text); font-weight: 600; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--faint); }
+.dot.ok { background: var(--ok); box-shadow: 0 0 0 4px rgba(52,211,153,.15); }
+.dot.bad { background: var(--bad); box-shadow: 0 0 0 4px rgba(248,113,113,.15); }
+.bars { display: inline-flex; gap: 2px; align-items: flex-end; height: 12px; }
+.bars i { width: 3px; border-radius: 1px; background: var(--faint); }
+.bars i:nth-child(1) { height: 4px; } .bars i:nth-child(2) { height: 7px; } .bars i:nth-child(3) { height: 10px; } .bars i:nth-child(4) { height: 12px; }
+.bars i.on { background: var(--ok); }
+
+/* layout */
+.grid { display: grid; grid-template-columns: 400px 1fr; gap: 20px; align-items: start; }
+.stack { display: grid; gap: 20px; }
+.sticky { position: sticky; top: 20px; }
+.settings { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+@media (max-width: 1100px) { .grid { grid-template-columns: 1fr; } .sticky { position: static; } }
+@media (max-width: 760px) { .settings { grid-template-columns: 1fr; } .wrap { padding: 16px 12px 40px; } }
+
+.card { background: linear-gradient(180deg, var(--panel-2), var(--panel)); border: 1px solid var(--line);
+  border-radius: var(--radius); padding: 20px; box-shadow: var(--shadow); }
+.card h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 0 16px;
+  display: flex; align-items: center; justify-content: space-between; font-weight: 600; }
+.card h2 small { text-transform: none; letter-spacing: 0; color: var(--faint); font-weight: 500; }
+.wide { grid-column: 1 / -1; }
+
+/* preview */
+.bezel { margin: 4px auto 16px; width: min(100%, 320px); aspect-ratio: 1; border-radius: 26px; padding: 18px;
+  background: linear-gradient(160deg, #e9eaee, #c9ccd4); box-shadow: 0 30px 60px -30px rgba(0,0,0,.9), inset 0 -2px 6px rgba(0,0,0,.2); }
+.screen { width: 100%; height: 100%; border-radius: 6px; background: #000; overflow: hidden; display: grid; place-items: center;
+  box-shadow: inset 0 0 0 2px #1d1f24; }
+.screen img { width: 100%; height: 100%; display: block; image-rendering: auto; transition: opacity .25s; }
+.screen .empty { color: #555; font-size: 13px; }
+.now { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.now h3 { margin: 0; font-size: 18px; }
+.now span { color: var(--muted); font-size: 13px; }
+
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.chip { border: 1px solid var(--line-2); background: transparent; padding: 6px 12px; border-radius: 999px; font-size: 13px;
+  color: var(--muted); cursor: pointer; transition: all .15s; }
+.chip:hover { color: var(--text); border-color: var(--accent); }
+.chip.active { background: rgba(124,140,255,.18); border-color: var(--accent); color: var(--text); }
+.chip.alert { border-color: rgba(248,113,113,.5); color: #fca5a5; }
+
+/* buttons */
+.row { display: flex; gap: 10px; flex-wrap: wrap; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: 1px solid var(--line-2);
+  background: rgba(255,255,255,.04); padding: 10px 16px; border-radius: var(--radius-sm); cursor: pointer;
+  font-weight: 600; font-size: 14px; transition: transform .08s, background .15s, border-color .15s; }
+.btn:hover { background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.2); }
+.btn:active { transform: translateY(1px); }
+.btn.primary { background: linear-gradient(135deg, var(--accent), var(--accent-2)); border-color: transparent; color: #0b0f17; }
+.btn.primary:hover { filter: brightness(1.08); }
+.btn.danger { color: #fecaca; border-color: rgba(248,113,113,.35); background: rgba(248,113,113,.08); }
+.btn.danger:hover { background: rgba(248,113,113,.16); }
+.btn.grow { flex: 1; }
+.btn svg { width: 16px; height: 16px; }
+
+/* form controls */
+.field { display: grid; gap: 8px; margin-bottom: 18px; }
+.field:last-child { margin-bottom: 0; }
+.label { display: flex; justify-content: space-between; align-items: baseline; font-size: 14px; color: var(--text); }
+.label output, .label em { font-style: normal; color: var(--accent); font-weight: 700; font-variant-numeric: tabular-nums; }
+.hint { font-size: 12.5px; color: var(--faint); margin-top: -2px; }
+
+.seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; background: rgba(0,0,0,.25); padding: 4px;
+  border-radius: 12px; border: 1px solid var(--line); }
+.seg button { border: 0; background: transparent; padding: 8px 10px; border-radius: 9px; cursor: pointer; color: var(--muted);
+  font-weight: 600; font-size: 13.5px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; transition: all .15s; }
+.seg button.on { background: rgba(124,140,255,.18); color: var(--text); box-shadow: inset 0 0 0 1px rgba(124,140,255,.6), 0 4px 12px -6px rgba(0,0,0,.8); }
+.swatch { width: 14px; height: 14px; border-radius: 4px; border: 1px solid rgba(255,255,255,.25); }
+
+input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; height: 26px; background: transparent; cursor: pointer; --p: 50%; }
+input[type=range]::-webkit-slider-runnable-track { height: 6px; border-radius: 6px;
+  background: linear-gradient(90deg, var(--accent) 0 var(--p), rgba(255,255,255,.1) var(--p) 100%); }
+input[type=range]::-moz-range-track { height: 6px; border-radius: 6px; background: rgba(255,255,255,.1); }
+input[type=range]::-moz-range-progress { height: 6px; border-radius: 6px; background: var(--accent); }
+input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 20px; height: 20px; border-radius: 50%; margin-top: -7px;
+  background: #fff; border: 3px solid var(--accent); box-shadow: 0 2px 8px rgba(0,0,0,.5); transition: transform .1s; }
+input[type=range]::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: #fff; border: 3px solid var(--accent); }
+input[type=range]:active::-webkit-slider-thumb { transform: scale(1.15); }
+
+.switch { position: relative; width: 44px; height: 26px; flex: none; }
+.switch input { opacity: 0; width: 0; height: 0; position: absolute; }
+.switch span { position: absolute; inset: 0; border-radius: 999px; background: rgba(255,255,255,.12); transition: .2s; cursor: pointer; }
+.switch span::after { content: ""; position: absolute; width: 20px; height: 20px; left: 3px; top: 3px; border-radius: 50%; background: #fff; transition: .2s; }
+.switch input:checked + span { background: var(--accent); }
+.switch input:checked + span::after { transform: translateX(18px); }
+.switch input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.text, select { width: 100%; background: rgba(0,0,0,.25); border: 1px solid var(--line-2); border-radius: var(--radius-sm);
+  padding: 10px 12px; outline: none; transition: border-color .15s; }
+.text:focus, select:focus { border-color: var(--accent); }
+select { appearance: none; background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position: calc(100% - 18px) 55%, calc(100% - 13px) 55%; background-size: 5px 5px; background-repeat: no-repeat; padding-right: 32px; }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+.list { display: grid; gap: 8px; }
+.item { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: var(--radius-sm); border: 1px solid var(--line);
+  background: rgba(0,0,0,.18); }
+.item .meta { flex: 1; min-width: 0; }
+.item .meta b { display: block; font-size: 14px; text-transform: capitalize; }
+.item .meta small { color: var(--faint); font-size: 12.5px; }
+.item.off { opacity: .55; }
+.icon-btn { width: 30px; height: 30px; border-radius: 9px; border: 1px solid var(--line-2); background: transparent; color: var(--muted);
+  cursor: pointer; display: grid; place-items: center; }
+.icon-btn:hover:not(:disabled) { color: var(--text); border-color: var(--accent); }
+.icon-btn:disabled { opacity: .3; cursor: default; }
+
+.search { position: relative; }
+.suggest { position: absolute; z-index: 5; top: calc(100% + 6px); left: 0; right: 0; background: var(--panel-2); border: 1px solid var(--line-2);
+  border-radius: var(--radius-sm); overflow: hidden; box-shadow: 0 20px 40px -10px rgba(0,0,0,.8); display: none; }
+.suggest button { display: flex; justify-content: space-between; width: 100%; text-align: left; padding: 10px 12px; background: transparent;
+  border: 0; border-bottom: 1px solid var(--line); cursor: pointer; }
+.suggest button:last-child { border-bottom: 0; }
+.suggest button:hover { background: rgba(124,140,255,.12); }
+.suggest small { color: var(--faint); }
+
+/* hosts + alerts */
+.host { padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: rgba(0,0,0,.18); }
+.host header { margin: 0 0 10px; }
+.host header b { font-size: 14px; }
+.meters { display: grid; grid-template-columns: auto 1fr auto; gap: 6px 10px; align-items: center; font-size: 12.5px; color: var(--muted); }
+.meter { height: 6px; border-radius: 6px; background: rgba(255,255,255,.08); overflow: hidden; }
+.meter i { display: block; height: 100%; border-radius: 6px; background: var(--ok); }
+.meters em { font-style: normal; color: var(--text); font-variant-numeric: tabular-nums; }
+.alerts { display: grid; gap: 8px; }
+.alerts div { padding: 10px 12px; border-radius: var(--radius-sm); background: rgba(248,113,113,.1); border: 1px solid rgba(248,113,113,.3); color: #fecaca; font-size: 13.5px; }
+.muted { color: var(--faint); font-size: 13px; }
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; font-size: 13px; }
+.kv span { color: var(--faint); } .kv b { font-weight: 500; text-align: right; font-variant-numeric: tabular-nums; }
+
+/* toast + modal */
+.toasts { position: fixed; right: 20px; bottom: 20px; display: grid; gap: 10px; z-index: 30; }
+.toast { padding: 12px 16px; border-radius: 14px; background: #1b2336; border: 1px solid var(--line-2); box-shadow: 0 20px 40px -12px rgba(0,0,0,.8);
+  display: flex; align-items: center; gap: 10px; font-size: 14px; animation: in .2s ease-out; }
+.toast.bad { border-color: rgba(248,113,113,.5); }
+@keyframes in { from { transform: translateY(8px); opacity: 0; } }
+.modal { position: fixed; inset: 0; background: rgba(5,8,14,.7); backdrop-filter: blur(6px); display: none; place-items: center; z-index: 40; padding: 20px; }
+.modal.open { display: grid; }
+.modal .card { max-width: 400px; width: 100%; }
+.modal p { color: var(--muted); margin: 0 0 18px; }
+footer { margin-top: 28px; color: var(--faint); font-size: 12.5px; text-align: center; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <div class="logo"><span></span></div>
+      <div><h1>SmallTV</h1><p>Display dashboard</p></div>
+    </div>
+    <div class="pills">
+      <div class="pill"><i class="dot" id="p-dot"></i><b id="p-device">Connecting…</b></div>
+      <div class="pill" title="Wi-Fi signal"><span class="bars" id="p-bars"><i></i><i></i><i></i><i></i></span><b id="p-rssi">–</b></div>
+      <div class="pill">Brightness <b id="p-bright">–</b></div>
+      <div class="pill" title="How long the last screen took to reach the display">Update speed <b id="p-push">–</b></div>
+    </div>
+  </header>
+
+  <div class="grid">
+    <div class="stack sticky">
+      <section class="card">
+        <div class="now"><h3 id="now-name">Waiting…</h3><span id="now-meta"></span></div>
+        <div class="bezel"><div class="screen" id="screen"><span class="empty">No screen yet</span></div></div>
+        <div class="row">
+          <button class="btn grow" id="b-pause"></button>
+          <button class="btn primary grow" id="b-next">Next screen
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+        </div>
+        <div class="chips" id="chips"></div>
+      </section>
+
+      <section class="card" id="alerts-card" hidden>
+        <h2>Active alerts</h2>
+        <div class="alerts" id="alerts"></div>
+      </section>
+
+      <section class="card">
+        <h2>Servers <small id="hosts-note"></small></h2>
+        <div class="stack" style="gap:10px" id="hosts"></div>
+      </section>
+    </div>
+
+    <div class="settings">
+      <section class="card">
+        <h2>Appearance</h2>
+        <div class="field">
+          <div class="label">Theme</div>
+          <div class="seg" id="s-theme">
+            <button data-v="dark"><i class="swatch" style="background:#000"></i>Dark</button>
+            <button data-v="gradient"><i class="swatch" style="background:linear-gradient(160deg,#1565c0,#455a64)"></i>Gradient</button>
+          </div>
+        </div>
+        <div class="field">
+          <div class="label">Clock format</div>
+          <div class="seg" id="s-clock"><button data-v="false">12-hour</button><button data-v="true">24-hour</button></div>
+        </div>
+        <div class="field">
+          <div class="label">Time per screen <output id="o-dwell"></output></div>
+          <input type="range" id="s-dwell" min="3" max="120" step="1">
+        </div>
+        <div class="field">
+          <div class="label">Colour order</div>
+          <div class="seg" id="s-madctl"><button data-v="0">RGB</button><button data-v="8">BGR</button></div>
+          <div class="hint">Switch if red and blue look swapped on the display.</div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Brightness <small id="b-mode"></small></h2>
+        <div class="field">
+          <div class="label">Daytime <output id="o-day"></output></div>
+          <input type="range" id="s-day" min="0" max="100" step="1">
+        </div>
+        <div class="field">
+          <div class="label">Night <output id="o-night"></output></div>
+          <input type="range" id="s-night" min="0" max="100" step="1">
+        </div>
+        <div class="field">
+          <div class="label">Night hours</div>
+          <div class="two"><select id="s-nstart" aria-label="Night starts"></select><select id="s-nend" aria-label="Night ends"></select></div>
+          <div class="hint">From the first time until the second, the display uses night brightness.</div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Screens <small>order and visibility</small></h2>
+        <div class="list" id="screens"></div>
+      </section>
+
+      <section class="card">
+        <h2>Weather <label class="switch" title="Show weather"><input type="checkbox" id="s-wx"><span></span></label></h2>
+        <div class="field">
+          <div class="label">Location <em id="o-loc"></em></div>
+          <div class="search">
+            <input class="text" id="s-loc" placeholder="Search a town or suburb (BOM, Australia)" autocomplete="off">
+            <div class="suggest" id="suggest"></div>
+          </div>
+        </div>
+        <div class="field">
+          <div class="label">Observation station <small class="muted">optional</small></div>
+          <div class="row"><input class="text" id="s-station" placeholder="Nearest station" style="flex:1"><button class="btn" id="b-station">Save</button></div>
+        </div>
+        <div class="kv" id="wx-now"></div>
+        <div class="row" style="margin-top:16px"><button class="btn grow" id="b-wx">Refresh weather now</button></div>
+      </section>
+
+      <section class="card">
+        <h2>Alert thresholds</h2>
+        <div class="field"><div class="label">Disk full <output id="o-disk"></output></div><input type="range" id="s-disk" min="50" max="100" step="1"></div>
+        <div class="field"><div class="label">Memory used <output id="o-mem"></output></div><input type="range" id="s-mem" min="50" max="100" step="1"></div>
+        <div class="field"><div class="label">CPU temperature <output id="o-cpu"></output></div><input type="range" id="s-cpu" min="50" max="105" step="1"></div>
+        <div class="field"><div class="label">GPU temperature <output id="o-gpu"></output></div><input type="range" id="s-gpu" min="50" max="105" step="1"></div>
+      </section>
+
+      <section class="card">
+        <h2>Display</h2>
+        <div class="kv" id="dev-info" style="margin-bottom:18px"></div>
+        <div class="row" style="margin-bottom:10px">
+          <button class="btn grow" id="b-init">Reset screen</button>
+          <button class="btn grow" id="b-test">Colour test</button>
+        </div>
+        <div class="row">
+          <button class="btn danger grow" id="b-reboot">Restart display</button>
+          <button class="btn danger grow" id="b-reset">Reset settings</button>
+        </div>
+      </section>
+    </div>
+  </div>
+  <footer id="foot">SmallTV dashboard</footer>
+</div>
+
+<div class="toasts" id="toasts"></div>
+<div class="modal" id="modal"><div class="card"><h2 id="m-title"></h2><p id="m-text"></p>
+  <div class="row"><button class="btn grow" id="m-no">Cancel</button><button class="btn danger grow" id="m-yes">Confirm</button></div></div></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const SCREEN_INFO = {
+  weather: "Current conditions and today's forecast",
+  forecast: "The next five days",
+  clock: "Time and date",
+  hosts: "One screen per server",
+};
+let state = null, lastCount = -1;
+// Screen names read nicely; server names keep their own spelling.
+const nice = (n) => n.startsWith("host-") ? n.slice(5) : n.charAt(0).toUpperCase() + n.slice(1);
+
+function toast(text, bad = false) {
+  const el = document.createElement("div");
+  el.className = "toast" + (bad ? " bad" : "");
+  el.innerHTML = `<i class="dot ${bad ? "bad" : "ok"}"></i>${esc(text)}`;
+  $("toasts").appendChild(el);
+  setTimeout(() => el.remove(), 3200);
+}
+
+async function api(path, body) {
+  const res = await fetch(path, body === undefined ? {} : {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || res.statusText);
+  return data;
+}
+
+async function save(changes, message = "Saved") {
+  try {
+    state = await api("/api/settings", changes);
+    renderSettings();
+    toast(message);
+  } catch (e) { toast(e.message, true); renderSettings(); }
+}
+
+async function act(action, extra = {}, message) {
+  try {
+    state = await api("/api/action", { action, ...extra });
+    if (message) toast(message);
+    renderStatus();
+    if (action === "reset_settings") renderSettings();
+  } catch (e) { toast(e.message, true); }
+}
+
+function confirmModal(title, text, onYes) {
+  $("m-title").textContent = title; $("m-text").textContent = text;
+  $("modal").classList.add("open");
+  $("m-yes").onclick = () => { $("modal").classList.remove("open"); onYes(); };
+  $("m-no").onclick = () => $("modal").classList.remove("open");
+}
+
+/* ---- controls ---- */
+function seg(id, value, onPick) {
+  for (const b of $(id).querySelectorAll("button")) {
+    b.classList.toggle("on", b.dataset.v === String(value));
+    b.onclick = () => onPick(b.dataset.v);
+  }
+}
+function slider(id, out, value, fmt, onCommit) {
+  const el = $(id);
+  const show = () => { $(out).textContent = fmt(+el.value); el.style.setProperty("--p", ((el.value - el.min) / (el.max - el.min) * 100) + "%"); };
+  el.value = value; show();
+  el.oninput = show;
+  el.onchange = () => onCommit(+el.value);
+}
+const hour = (h) => { const p = h < 12 ? "am" : "pm"; const x = h % 12 || 12; return `${x}:00 ${p}`; };
+function hours(id, value, onPick) {
+  const el = $(id);
+  if (!el.options.length) for (let h = 0; h < 24; h++) el.add(new Option(hour(h), h));
+  el.value = value;
+  el.onchange = () => onPick(+el.value);
+}
+
+function renderSettings() {
+  if (!state) return;
+  const s = state.settings;
+  seg("s-theme", s.display.theme, (v) => save({ display: { theme: v } }, v === "dark" ? "Dark theme on" : "Gradient theme on"));
+  seg("s-clock", s.display.clock_24h, (v) => save({ display: { clock_24h: v === "true" } }));
+  seg("s-madctl", s.device.madctl, (v) => save({ device: { madctl: +v } }, "Colour order changed"));
+  slider("s-dwell", "o-dwell", s.device.dwell_seconds, (v) => `${v} s`, (v) => save({ device: { dwell_seconds: v } }));
+  slider("s-day", "o-day", s.brightness.day, (v) => `${v}%`, (v) => save({ brightness: { day: v } }));
+  slider("s-night", "o-night", s.brightness.night, (v) => `${v}%`, (v) => save({ brightness: { night: v } }));
+  hours("s-nstart", s.brightness.night_start, (v) => save({ brightness: { night_start: v } }));
+  hours("s-nend", s.brightness.night_end, (v) => save({ brightness: { night_end: v } }));
+  slider("s-disk", "o-disk", s.alerts.disk_percent, (v) => `${v}%`, (v) => save({ alerts: { disk_percent: v } }));
+  slider("s-mem", "o-mem", s.alerts.memory_percent, (v) => `${v}%`, (v) => save({ alerts: { memory_percent: v } }));
+  slider("s-cpu", "o-cpu", s.alerts.cpu_temp, (v) => `${v}°C`, (v) => save({ alerts: { cpu_temp: v } }));
+  slider("s-gpu", "o-gpu", s.alerts.gpu_temp, (v) => `${v}°C`, (v) => save({ alerts: { gpu_temp: v } }));
+
+  $("s-wx").checked = s.weather.enabled;
+  $("s-wx").onchange = (e) => save({ weather: { enabled: e.target.checked } }, e.target.checked ? "Weather on" : "Weather off");
+  $("o-loc").textContent = s.weather.location ? `${s.weather.location}${s.weather.state ? ", " + s.weather.state : ""}` : "not set";
+  $("s-station").value = s.weather.station_id || "";
+
+  // screens: enabled ones in their order, then the rest
+  const on = s.display.screens, all = [...on, ...state.screens_available.filter((x) => !on.includes(x))];
+  $("screens").innerHTML = all.map((name) => {
+    const i = on.indexOf(name), enabled = i >= 0;
+    return `<div class="item ${enabled ? "" : "off"}">
+      <div class="meta"><b>${esc(name)}</b><small>${esc(SCREEN_INFO[name] || "")}</small></div>
+      <button class="icon-btn" data-up="${name}" ${!enabled || i === 0 ? "disabled" : ""} aria-label="Move up">▲</button>
+      <button class="icon-btn" data-down="${name}" ${!enabled || i === on.length - 1 ? "disabled" : ""} aria-label="Move down">▼</button>
+      <label class="switch"><input type="checkbox" data-toggle="${name}" ${enabled ? "checked" : ""}><span></span></label></div>`;
+  }).join("");
+  const move = (name, d) => { const l = [...on], i = l.indexOf(name); [l[i], l[i + d]] = [l[i + d], l[i]]; save({ display: { screens: l } }, "Order saved"); };
+  $("screens").querySelectorAll("[data-up]").forEach((b) => b.onclick = () => move(b.dataset.up, -1));
+  $("screens").querySelectorAll("[data-down]").forEach((b) => b.onclick = () => move(b.dataset.down, 1));
+  $("screens").querySelectorAll("[data-toggle]").forEach((c) => c.onchange = () => {
+    const n = c.dataset.toggle, l = c.checked ? [...on, n] : on.filter((x) => x !== n);
+    save({ display: { screens: l } }, c.checked ? "Screen added" : "Screen hidden");
+  });
+}
+
+function renderStatus() {
+  if (!state) return;
+  const st = state.status, dev = st.device;
+  const online = dev && !st.last_error;
+  $("p-dot").className = "dot " + (online ? "ok" : "bad");
+  $("p-device").textContent = dev ? (online ? "Display online" : "Display unreachable") : "No contact yet";
+  const rssi = dev?.rssi;
+  $("p-rssi").textContent = rssi ? `${rssi} dBm` : "–";
+  const level = rssi ? (rssi > -55 ? 4 : rssi > -65 ? 3 : rssi > -75 ? 2 : 1) : 0;
+  [...$("p-bars").children].forEach((b, i) => b.classList.toggle("on", i < level));
+  $("p-bright").textContent = `${st.brightness_now}%`;
+  const s = state.settings?.brightness;
+  if (s) $("b-mode").textContent = st.brightness_now === s.night && s.night !== s.day ? "night mode now" : "daytime now";
+  $("p-push").textContent = st.last_push ? `${st.last_push.ms} ms` : "–";
+
+  $("now-name").textContent = st.current ? nice(st.current) : "Waiting…";
+  $("now-meta").textContent = st.last_push ? `${new Date(st.last_push.at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })} · ${st.last_push.ms} ms` : "";
+  $("now-meta").title = st.last_push ? st.last_push.sent : "";
+  if (st.last_push && st.last_push.count !== lastCount) {
+    lastCount = st.last_push.count;
+    const img = new Image();
+    img.alt = "What the display is showing";
+    img.onload = () => { $("screen").replaceChildren(img); };
+    img.src = `/api/preview.png?n=${lastCount}`;
+  }
+  $("b-pause").innerHTML = st.paused
+    ? `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 5l12 7-12 7z"/></svg>Resume rotation`
+    : `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z"/></svg>Pause rotation`;
+  $("b-pause").onclick = () => act(st.paused ? "resume" : "pause", {}, st.paused ? "Rotation resumed" : "Holding this screen");
+
+  const chips = (st.rotation || []).map((n) => `<button class="chip ${n === st.current ? "active" : ""}" data-jump="${esc(n)}">${esc(nice(n))}</button>`);
+  if (st.alerts.length) chips.push(`<button class="chip alert ${st.current === "alert" ? "active" : ""}" data-jump="alert">Alert</button>`);
+  $("chips").innerHTML = chips.join("");
+  $("chips").querySelectorAll("[data-jump]").forEach((b) => b.onclick = () => act("jump", { screen: b.dataset.jump }));
+
+  $("alerts-card").hidden = !st.alerts.length;
+  $("alerts").innerHTML = st.alerts.map((a) => `<div>${esc(a)}</div>`).join("");
+
+  const pct = (v) => Math.max(0, Math.min(100, v || 0));
+  const colour = (v, w = 70, b = 90) => v >= b ? "var(--bad)" : v >= w ? "var(--warn)" : "var(--ok)";
+  const meter = (label, v, w, b) => `<span>${label}</span><div class="meter"><i style="width:${pct(v)}%;background:${colour(v, w, b)}"></i></div><em>${Math.round(v)}%</em>`;
+  $("hosts").innerHTML = st.hosts.length ? st.hosts.map((h) => `<div class="host">
+      <header style="display:flex;justify-content:space-between;align-items:center"><b>${esc(h.name)}</b>
+        <span class="pill" style="padding:3px 10px"><i class="dot ${h.online ? "ok" : "bad"}"></i>${h.online ? esc(h.label || "online") : "not reporting"}</span></header>
+      ${h.online ? `<div class="meters">${meter("CPU", h.cpu)}${meter("Memory", h.mem_percent)}${meter("Disk", h.disk_percent, 80, 90)}
+        ${h.gpu ? meter("GPU", h.gpu.util) : ""}</div>
+        <div class="muted" style="margin-top:8px">${h.temp != null ? `CPU ${h.temp}°C` : ""}${h.gpu ? ` · GPU ${h.gpu.temp}°C` : ""}</div>` : ""}
+    </div>`).join("") : `<div class="muted">No servers configured.</div>`;
+
+  const wx = st.weather;
+  $("wx-now").innerHTML = wx ? `<span>Now</span><b>${wx.temp ?? "–"}°C at ${esc(wx.station || "")}</b><span>Observed</span><b>${esc(wx.observed || "–")}</b>`
+                             : `<span>Now</span><b>${state.settings.weather.enabled ? "Fetching…" : "Weather is off"}</b>`;
+
+  $("dev-info").innerHTML = dev ? `<span>Firmware</span><b>${esc(dev.firmware)}</b><span>Address</span><b>${esc(dev.ip)}</b>
+      <span>Up for</span><b>${Math.floor(dev.uptime_s / 3600)}h ${Math.floor(dev.uptime_s % 3600 / 60)}m</b>
+      <span>Free memory</span><b>${(dev.heap / 1024).toFixed(1)} KB</b><span>Screens shown</span><b>${dev.frames}</b>
+      <span>Fast updates</span><b>${dev.frame_port ? "on (compressed)" : "off (older firmware)"}</b>`
+    : `<span>Status</span><b>${esc(st.last_error || "waiting for first contact")}</b>`;
+  $("foot").textContent = `SmallTV dashboard ${st.version}${st.last_error ? " · last error: " + st.last_error : ""}`;
+}
+
+/* ---- location search ---- */
+let searchTimer = null;
+$("s-loc").addEventListener("input", (e) => {
+  clearTimeout(searchTimer);
+  const q = e.target.value.trim();
+  if (q.length < 2) { $("suggest").style.display = "none"; return; }
+  searchTimer = setTimeout(async () => {
+    try {
+      const places = await api(`/api/locations?q=${encodeURIComponent(q)}`);
+      $("suggest").innerHTML = places.length ? places.map((p) =>
+        `<button data-name="${esc(p.name)}" data-state="${esc(p.state)}" data-id="${esc(p.id)}"><span>${esc(p.name)}</span><small>${esc(p.state)}</small></button>`).join("")
+        : `<button disabled><span class="muted">No matches</span></button>`;
+      $("suggest").style.display = "block";
+      $("suggest").querySelectorAll("[data-id]").forEach((b) => b.onclick = () => {
+        $("suggest").style.display = "none"; $("s-loc").value = "";
+        save({ weather: { location: b.dataset.name, state: b.dataset.state, place_id: b.dataset.id, enabled: true } }, `Weather for ${b.dataset.name}`);
+      });
+    } catch (err) { toast(err.message, true); }
+  }, 300);
+});
+document.addEventListener("click", (e) => { if (!e.target.closest(".search")) $("suggest").style.display = "none"; });
+
+$("b-station").onclick = () => save({ weather: { station_id: $("s-station").value.trim() } }, "Station saved");
+$("b-next").onclick = () => act("next");
+$("b-wx").onclick = () => act("refresh_weather", {}, "Fetching the latest weather");
+$("b-init").onclick = () => act("init", {}, "Screen re-initialised");
+$("b-test").onclick = () => act("test", {}, "Showing colour bars for 5 seconds");
+$("b-reboot").onclick = () => confirmModal("Restart the display?", "It will be blank for about 20 seconds, then rotation resumes.", () => act("reboot", {}, "Display restarting"));
+$("b-reset").onclick = () => confirmModal("Reset dashboard settings?", "All changes made here are discarded and config.toml values come back.", () => act("reset_settings", {}, "Settings reset"));
+
+async function poll() {
+  try { state = await api("/api/state"); renderStatus(); }
+  catch (e) { $("p-dot").className = "dot bad"; $("p-device").textContent = "Service unreachable"; }
+}
+(async () => { await poll(); renderSettings(); setInterval(poll, 2000); })();
+</script>
+</body>
+</html>
