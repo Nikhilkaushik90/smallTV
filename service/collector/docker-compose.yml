@@ -1,0 +1,58 @@
+# Host stats collector. Run one copy on every machine you want on the display.
+#   cp .env.example .env   # then set DOCKER_GID, and HOST_DISK_PATH if / is not your data disk
+#   docker compose up -d --build
+# NVIDIA GPU stats: docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d --build
+
+services:
+  # Reads host, GPU and Docker counts. No network, so the Docker socket cannot be reached remotely.
+  smalltv-stats:
+    build: .
+    image: smalltv-stats:0.2.0
+    container_name: smalltv-stats
+    restart: unless-stopped
+    network_mode: none
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 64m
+    group_add:
+      - "${DOCKER_GID:?set DOCKER_GID in .env (getent group docker)}"
+    volumes:
+      - stats:/shared
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /proc:/host/proc:ro
+      - ${HOST_DISK_PATH:-/}:/host/root:ro,rslave
+    logging: &logging
+      driver: json-file
+      options:
+        max-size: 1m
+        max-file: "3"
+
+  # Publishes only /host.json. No Docker socket and no host mounts.
+  smalltv-stats-web:
+    image: smalltv-stats:0.2.0
+    container_name: smalltv-stats-web
+    command: ["python", "-u", "statserver.py"]
+    restart: unless-stopped
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 32m
+    ports:
+      - "${STATS_BIND:-0.0.0.0}:${STATS_PORT:-8766}:8766"
+    volumes:
+      - stats:/shared:ro
+    depends_on:
+      - smalltv-stats
+    logging: *logging
+
+volumes:
+  stats:
+    driver_opts:
+      type: tmpfs
+      device: tmpfs
+      o: size=1m,uid=1000,gid=1000,mode=0755

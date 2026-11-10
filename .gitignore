@@ -1,0 +1,16 @@
+# Firmware build output and toolchains
+firmware/.pio/
+firmware/.pio-core/
+firmware/.venv/
+firmware/.home/
+*.bin
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Local, site-specific settings
+service/config.toml
+service/collector/.env
+service/preview/

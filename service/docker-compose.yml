@@ -1,0 +1,24 @@
+# Dashboard service: renders screens and pushes them to the display.
+#   cp config.example.toml config.toml   # then edit it
+#   docker compose up -d --build
+services:
+  smalltv-dashboard:
+    build: .
+    image: smalltv-dashboard:0.2.0
+    container_name: smalltv-dashboard
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 128m
+    volumes:
+      - ./config.toml:/config/config.toml:ro
+    logging:
+      driver: json-file
+      options:
+        max-size: 1m
+        max-file: "3"

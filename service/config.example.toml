@@ -1,0 +1,53 @@
+# SmallTV dashboard configuration. Copy to config.toml and edit.
+# Only [device] host is required; everything else has a sensible default.
+
+[device]
+host = "smalltv.lan"    # IP address or hostname of the display running the companion firmware
+madctl = 0              # 0 = RGB, 8 = BGR. Swap if red and blue look reversed.
+dwell_seconds = 15      # Seconds each screen stays up
+
+[display]
+timezone = "Australia/Sydney"   # Any IANA zone, used for the clock and night brightness
+clock_24h = false
+# Screens in rotation order. "hosts" adds one screen per [[hosts]] entry.
+screens = ["weather", "forecast", "clock", "hosts"]
+# Fonts must exist inside the container or machine running the service.
+font_regular = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+font_bold = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+
+[brightness]
+day = 60          # 0 to 100
+night = 20
+night_start = 22  # Hour (24-hour clock) night brightness starts
+night_end = 6     # Hour it ends
+
+[weather]
+# Australian Bureau of Meteorology forecast and observations. Read the BOM section in README.md first.
+enabled = true
+location = "Parramatta"   # Find the exact name with: python -m smalltv find-location "Parramatta"
+state = "NSW"             # Optional, picks the right place when names repeat across states
+# place_id = ""           # Optional, pin a place id from find-location instead of searching
+# station_id = ""         # Optional, observation station id; BOM's nearest station is used otherwise
+refresh_minutes = [8, 38] # Minutes past each hour to fetch; BOM observations update at :00 and :30
+# Warnings shown as full-screen alerts, and warnings never shown. Both are case-insensitive regexes.
+alert_warnings = "severe|thunderstorm|flood|fire|heat|storm|cyclone"
+ignore_warnings = "cancel|marine|sheep|coastal waters"
+
+[alerts]
+# A red alert screen appears between screens while any of these is true.
+disk_percent = 90
+memory_percent = 95
+cpu_temp = 85
+gpu_temp = 90
+stale_seconds = 120   # A host whose stats are older than this counts as not reporting
+
+# One block per machine running the collector (service/collector).
+[[hosts]]
+name = "Server A"
+label = "NAS"
+url = "http://server-a.lan:8766/host.json"
+
+[[hosts]]
+name = "Server B"
+label = "GPU box"
+url = "http://server-b.lan:8766/host.json"

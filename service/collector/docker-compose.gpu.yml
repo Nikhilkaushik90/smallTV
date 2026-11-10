@@ -1,0 +1,13 @@
+# Adds NVIDIA GPU stats. Needs the NVIDIA driver plus CDI specs on the host
+# (nvidia-ctk cdi generate, from the NVIDIA Container Toolkit). Check with: ls /etc/cdi /var/run/cdi
+services:
+  smalltv-stats:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: cdi
+              device_ids:
+                - nvidia.com/gpu=all
+              capabilities:
+                - gpu
