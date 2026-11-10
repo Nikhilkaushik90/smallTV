@@ -3,6 +3,7 @@
 Minimal replacement firmware for the **GeekMagic SmallTV Ultra** (ESP8266, ST7789V 240x240). It joins your Wi-Fi, shows a status screen, and then displays whatever frames the [dashboard service](../service/) pushes to it.
 
 - **No display library:** frames arrive as raw pixels, so the firmware only needs the ESP8266 Arduino core.
+- **Fast frame port:** compressed frames stream straight to the screen over TCP port 7777. The decompressor is the uzlib copy that ships inside the ESP8266 core.
 - **Never touches the filesystem:** the stock firmware's files stay on flash, so restoring stock gives you its pages and photos back.
 - **Wi-Fi setup hotspot:** opens when no saved network can be joined.
 - **Wi-Fi firmware updates** at `/update`, including in safe mode.
@@ -39,6 +40,12 @@ docker run --rm --user "$(id -u):$(id -g)" -e HOME=/work/.home \
 
 The first build downloads the toolchain into `.pio-core/`. Later builds can run with `--network none`.
 
+**Test the frame decoder on your PC** (needs `gcc` and Python with Pillow; point `UZLIB_SRC` at the core's copy):
+
+```bash
+UZLIB_SRC=~/.platformio/packages/framework-arduinoespressif8266/tools/sdk/uzlib/src ./test/run_host_test.sh
+```
+
 Check the image header before flashing: `head -c 4 .pio/build/smalltv-ultra/firmware.bin | od -An -tx1` should print `e9 02 02 40`, matching the stock firmware (4 MB, DIO, 40 MHz).
 
 ## Flash over Wi-Fi
@@ -74,8 +81,24 @@ The screen then shows the IP address it received and **WAITING FOR DATA** until 
 | `GET /reboot` | Restart |
 | `GET`/`POST /update` | Firmware upload |
 | `POST /wifi` | Save Wi-Fi details; setup hotspot only |
+| TCP `7777` | Fast frame port, described below |
 
 `has_frame` is `false` after a restart or `/lcd/init`, so a pushing service can resend its latest frame straight away. The dashboard service does this every cycle.
+
+### Fast frame port
+
+`/status` advertises it as `"frame_port": 7777, "codecs": "raw,zlib"`. Open a TCP connection, send one message, and read the one-line reply (`OK` or `ERR <reason>`). The device then closes the connection.
+
+| Bytes | Field |
+|---|---|
+| 0–3 | `STV1` |
+| 4 | Encoding: `0` raw, `1` zlib |
+| 5 | Reserved, `0` |
+| 6–13 | `x`, `y`, `width`, `height` as big-endian 16-bit values (a region, or the full screen) |
+| 14–17 | Payload length, big-endian 32-bit |
+| 18… | Payload: `width × height × 2` bytes of big-endian RGB565, raw or zlib-compressed |
+
+Compressed payloads must use a window of 4 KB or less (`zlib.compressobj(level, zlib.DEFLATED, 12)` in Python). Dashboard screens compress from 115 KB to roughly 2–10 KB.
 
 ## Build options
 
@@ -95,6 +118,7 @@ Override any of these with `build_flags` in your own `[env:...]` in `platformio.
 | `SETUP_SSID` | `"SmallTV-Setup"` | Setup hotspot name |
 | `SETUP_AP_IP` | `"10.42.0.1"` | Hotspot address; change it if it overlaps your network |
 | `DEVICE_HOSTNAME` | `"smalltv"` | DHCP hostname |
+| `FRAME_PORT` | `7777` | TCP port of the fast frame port |
 | `BOARD_NAME` | `"SmallTV-Ultra"` | Model string in `/status` |
 
 The SmallTV Ultra wiring is: SPI clock GPIO14, SPI data GPIO13, data/command GPIO0, reset GPIO2, backlight GPIO5 (active low), no chip select (SPI mode 3).

@@ -6,6 +6,7 @@
 //
 // Endpoints:  GET /  /status  /test  /lcd?brightness=&inv=&madctl=  /lcd/init  /reboot
 //             POST /frame   multipart upload of LCD_SIZE*LCD_SIZE*2 bytes, big-endian RGB565
+//             TCP FRAME_PORT  fast path: 18-byte header, then raw or zlib RGB565 (see README)
 //             /update       firmware upload (browser form or curl -F firmware=@file.bin)
 //             POST /wifi    save Wi-Fi details, only while the setup hotspot is active
 //
@@ -16,6 +17,8 @@
 #include <ESP8266WiFi.h>
 #include <SPI.h>
 #include <user_interface.h>
+
+#include "frame_codec.h"
 
 #ifndef FW_VERSION
 #define FW_VERSION "dev"
@@ -65,6 +68,9 @@
 #ifndef DEVICE_HOSTNAME
 #define DEVICE_HOSTNAME "smalltv"
 #endif
+#ifndef FRAME_PORT
+#define FRAME_PORT 7777
+#endif
 
 static const uint32_t FRAME_BYTES = uint32_t(LCD_SIZE) * LCD_SIZE * 2;
 static const uint32_t POWER_ON_SETTLE_MS = 600;      // Panel needs time after a cold power-up.
@@ -78,6 +84,10 @@ static const uint32_t RTC_SLOT = 100;                // Clear of the block reser
 
 static ESP8266WebServer server(80);
 static ESP8266HTTPUpdateServer updater;
+static WiFiServer frameServer(FRAME_PORT);
+static uint8_t inflateDict[4096];  // zlib window; the sender must use wbits <= 12
+static const uint32_t FRAME_READ_TIMEOUT_MS = 3000;
+static const uint32_t MAX_COMPRESSED_BYTES = 262144;
 
 struct RtcState {
   uint32_t magic;
@@ -322,7 +332,9 @@ static void handleStatus() {
   json += WiFi.RSSI();
   json += F(",\"ip\":\"");
   json += WiFi.localIP().toString();
-  json += F("\",\"lcd_size\":");
+  json += F("\",\"frame_port\":");
+  json += FRAME_PORT;
+  json += F(",\"codecs\":\"raw,zlib\",\"lcd_size\":");
   json += LCD_SIZE;
   json += F(",\"frames\":");
   json += framesShown;
@@ -390,6 +402,76 @@ static void handleFrameUpload() {
   }
 }
 
+// ---- Fast frame port ----
+// Header (18 bytes, big-endian): "STV1", encoding (0 raw, 1 zlib), reserved, x, y, w, h (uint16 each),
+// payload length (uint32). Then the payload. The device replies "OK\n" or "ERR <reason>\n" and closes.
+
+struct NetReader {
+  WiFiClient *client;
+};
+
+static int netRead(void *ctx, uint8_t *buf, int max) {
+  WiFiClient *client = static_cast<NetReader *>(ctx)->client;
+  uint32_t start = millis();
+  while (!client->available()) {
+    if (!client->connected() || millis() - start > FRAME_READ_TIMEOUT_MS) return 0;
+    delay(1);
+  }
+  return client->read(buf, min<int>(max, client->available()));
+}
+
+static void lcdWriteBytes(void *, const uint8_t *buf, int len) { SPI.writeBytes(buf, len); }
+
+static bool readExact(NetReader &net, uint8_t *buf, int len) {
+  while (len > 0) {
+    int n = netRead(&net, buf, len);
+    if (n <= 0) return false;
+    buf += n;
+    len -= n;
+  }
+  return true;
+}
+
+static void handleFrameClient(WiFiClient &client) {
+  client.setNoDelay(true);
+  NetReader net = {&client};
+  uint8_t h[18];
+  if (!readExact(net, h, sizeof(h))) {
+    client.stop();
+    return;
+  }
+  uint8_t encoding = h[4];
+  uint16_t x = h[6] << 8 | h[7], y = h[8] << 8 | h[9], w = h[10] << 8 | h[11], ht = h[12] << 8 | h[13];
+  uint32_t length = uint32_t(h[14]) << 24 | uint32_t(h[15]) << 16 | uint32_t(h[16]) << 8 | h[17];
+  uint32_t pixelBytes = uint32_t(w) * ht * 2;
+
+  const char *error = nullptr;
+  if (memcmp(h, "STV1", 4) != 0) error = "bad header";
+  else if (safeMode) error = "safe mode";
+  else if (w == 0 || ht == 0 || x + w > LCD_SIZE || y + ht > LCD_SIZE) error = "bad region";
+  else if (encoding == 0 && length != pixelBytes) error = "bad length";
+  else if (encoding == 1 && (length == 0 || length > MAX_COMPRESSED_BYTES)) error = "bad length";
+  else if (encoding > 1) error = "bad encoding";
+
+  if (!error) {
+    lcdWindow(x, y, x + w - 1, y + ht - 1);
+    int rc = encoding == 0
+                 ? fc_copy_stream(netRead, &net, length, lcdWriteBytes, nullptr)
+                 : fc_inflate_stream(netRead, &net, length, lcdWriteBytes, nullptr, pixelBytes,
+                                     inflateDict, sizeof(inflateDict));
+    if (rc == FC_ERR_READ) error = "timeout";
+    else if (rc == FC_ERR_WINDOW) error = "window too large";
+    else if (rc != FC_OK) error = "decode failed";
+  }
+  if (!error) {
+    framesShown++;
+    if (x == 0 && y == 0 && w == LCD_SIZE && ht == LCD_SIZE) showingStatus = false;
+  }
+  client.print(error ? String(F("ERR ")) + error + "\n" : String(F("OK\n")));
+  client.flush();
+  client.stop();
+}
+
 static void handleWifiSave() {
   if (!apActive) {
     server.send(403, "text/plain", "Only available on the setup hotspot");
@@ -444,10 +526,14 @@ void setup() {
   server.on("/frame", HTTP_POST, handleFrameDone, handleFrameUpload);
   updater.setup(&server, "/update");
   server.begin();
+  frameServer.begin();
+  frameServer.setNoDelay(true);
 }
 
 void loop() {
   server.handleClient();
+  WiFiClient frameClient = frameServer.accept();
+  if (frameClient) handleFrameClient(frameClient);
   uint32_t now = millis();
   if (now - lastTickMs >= 1000) {
     lastTickMs = now;

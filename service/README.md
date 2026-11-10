@@ -77,6 +77,8 @@ python -m unittest discover -s tests                   # offline tests
 
 Unknown settings are rejected at startup with a clear message, so typos don't silently do nothing.
 
+Frames go over the firmware's fast port, compressed, when the display reports one (firmware 0.3.0 or later). Older firmware gets the standard HTTP upload automatically.
+
 ## BOM weather data
 
 Weather comes from the Australian **Bureau of Meteorology**, through the JSON API behind the BOM website (`api.bom.gov.au`). Before you enable it:

@@ -14,7 +14,10 @@ sys.path.insert(0, str(SERVICE))
 
 from smalltv import config, draw, screens  # noqa: E402
 from smalltv.bom import build_weather_data  # noqa: E402
-from smalltv.device import rgb565  # noqa: E402
+import struct  # noqa: E402
+import zlib  # noqa: E402
+
+from smalltv.device import encode_frame, rgb565  # noqa: E402
 
 FONTS = Path(draw._fonts["regular"]).is_file() and Path(draw._fonts["bold"]).is_file()
 NOW = datetime(2026, 1, 15, 14, 5, tzinfo=ZoneInfo("Australia/Sydney"))
@@ -88,6 +91,30 @@ class ScreensTest(unittest.TestCase):
         self.assertEqual(len(frame), 240 * 240 * 2)
         white = rgb565(draw.sky("#ffffff", "#ffffff"))
         self.assertEqual(white[:2], b"\xff\xff")
+
+    def test_rgb565_matches_reference_formula(self):
+        image = screens.weather_card(self.data, NOW, None)
+        raw = image.tobytes()
+        expected = bytearray()
+        for i in range(0, len(raw), 3):
+            value = ((raw[i] & 0xF8) << 8) | ((raw[i + 1] & 0xFC) << 3) | (raw[i + 2] >> 3)
+            expected += bytes((value >> 8, value & 0xFF))
+        self.assertEqual(rgb565(image), bytes(expected))
+
+
+class FastPortTest(unittest.TestCase):
+    def test_encoded_frame_round_trips(self):
+        pixels = bytes(range(256)) * 450  # 115200 bytes
+        message = encode_frame(pixels, 240, 240)
+        magic, encoding, _, x, y, w, h, length = struct.unpack(">4sBBHHHHI", message[:18])
+        self.assertEqual((magic, encoding, x, y, w, h), (b"STV1", 1, 0, 0, 240, 240))
+        self.assertEqual(length, len(message) - 18)
+        self.assertLessEqual(message[18] >> 4, 4, "window must fit the device's 4 KB dictionary")
+        self.assertEqual(zlib.decompress(message[18:]), pixels)
+
+    def test_raw_frame(self):
+        message = encode_frame(b"\x00" * 8, 2, 2, x=10, y=20, compress=False)
+        self.assertEqual(struct.unpack(">4sBBHHHHI", message[:18]), (b"STV1", 0, 0, 10, 20, 2, 2, 8))
 
 
 if __name__ == "__main__":
