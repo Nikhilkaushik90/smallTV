@@ -182,7 +182,7 @@ def _wrap(d, text, f, width):
 
 
 def alert_card(alerts):
-    card, layer, d = canvas("#8e0000", "#c62828")
+    card, layer, d = canvas("#8e0000", "#c62828", keep_colour=True)  # alerts stay red in every theme
     d.text((12, 10), "⚠ ALERT", font=font(26, True), fill=WHITE)
     if len(alerts) > 1:
         d.text((228, 19), f"{len(alerts)} active", font=font(13), fill=SOFT, anchor="ra")

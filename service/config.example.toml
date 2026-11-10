@@ -8,6 +8,7 @@ dwell_seconds = 15      # Seconds each screen stays up
 
 [display]
 timezone = "Australia/Sydney"   # Any IANA zone, used for the clock and night brightness
+theme = "dark"          # "dark" (black background, smallest updates) or "gradient" (coloured skies)
 clock_24h = false
 # Screens in rotation order. "hosts" adds one screen per [[hosts]] entry.
 screens = ["weather", "forecast", "clock", "hosts"]

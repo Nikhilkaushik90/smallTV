@@ -60,15 +60,26 @@ class Device:
         query = "&".join(f"{key}={value}" for key, value in values.items())
         return json.loads(self.get(f"/lcd?{query}"))
 
-    def push(self, image):
-        """Send a full-screen image, compressed over the fast port when the firmware supports it."""
-        if self.frame_port:
-            self.push_fast(rgb565(image), *image.size)
-        else:
+    def push(self, image, previous=None):
+        """Show image. With the fast port and the image currently on screen as previous, only the changed
+        rectangle is sent. Returns a short description of what was sent."""
+        if not self.frame_port:
             self.push_http(image)
+            return "full frame over HTTP"
+        region = (0, 0, *image.size)
+        if previous is not None and previous.size == image.size:
+            region = ImageChops.difference(previous.convert("RGB"), image.convert("RGB")).getbbox()
+            if region is None:
+                return "unchanged"
+        x0, y0, x1, y1 = region
+        message = encode_frame(rgb565(image.crop(region)), x1 - x0, y1 - y0, x0, y0)
+        self._send_fast(message)
+        return f"{len(message) / 1024:.1f} KB, region {x1 - x0}x{y1 - y0} at {x0},{y0}"
 
     def push_fast(self, pixels, width, height):
-        message = encode_frame(pixels, width, height)
+        self._send_fast(encode_frame(pixels, width, height))
+
+    def _send_fast(self, message):
         with socket.create_connection((self.host, self.frame_port), timeout=self.timeout) as conn:
             conn.sendall(message)
             reply = conn.recv(64)

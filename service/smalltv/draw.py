@@ -15,6 +15,9 @@ WHITE = (255, 255, 255, 255)
 SOFT = (255, 255, 255, 190)
 GREEN, AMBER, RED = (67, 180, 96, 255), (255, 179, 0, 255), (229, 57, 53, 255)
 
+THEMES = ("gradient", "dark")
+_theme = {"name": "gradient"}
+
 _fonts = {"regular": "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
           "bold": "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"}
 
@@ -32,6 +35,13 @@ EXTRA_ART = """
   </g>
 </symbol>
 """
+
+
+def set_theme(name):
+    """"gradient" draws coloured skies; "dark" uses plain black, which also compresses far better."""
+    if name not in THEMES:
+        raise ValueError(f"unknown theme {name!r}, choose from {THEMES}")
+    _theme["name"] = name
 
 
 def set_fonts(regular, bold):
@@ -68,8 +78,11 @@ def sky(top, bottom):
     return Image.composite(Image.new("RGB", (SIZE, SIZE), bottom), Image.new("RGB", (SIZE, SIZE), top), gradient)
 
 
-def canvas(top, bottom):
-    card = sky(top, bottom).convert("RGBA")
+def canvas(top, bottom, keep_colour=False):
+    if _theme["name"] == "dark" and not keep_colour:
+        card = Image.new("RGBA", (SIZE, SIZE), (0, 0, 0, 255))
+    else:
+        card = sky(top, bottom).convert("RGBA")
     layer = Image.new("RGBA", (SIZE, SIZE), (0, 0, 0, 0))
     return card, layer, ImageDraw.Draw(layer)
 

@@ -33,6 +33,7 @@ class Dashboard:
         self.config = config
         self.tz = ZoneInfo(config.display.timezone)
         draw.set_fonts(config.display.font_regular, config.display.font_bold)
+        draw.set_theme(config.display.theme)
         self.device = Device(config.device.host)
         self.bom = BomClient(config.weather, config.display.timezone) if config.weather.enabled else None
         self.alert_warnings = re.compile(config.weather.alert_warnings, re.I) if config.weather.alert_warnings else None
@@ -41,6 +42,7 @@ class Dashboard:
         self.last_weather_slot = None
         self.index = 0
         self.showing_alert = False
+        self.on_screen = None  # Last image the device confirmed, for changed-region updates
 
     def now(self):
         return datetime.now(self.tz)
@@ -113,10 +115,10 @@ class Dashboard:
         alerts = self.alerts(stats)
         cards = self.screens(stats)
         if alerts and not self.showing_alert:
-            image, self.showing_alert = screens.alert_card(alerts), True
+            name, image, self.showing_alert = "alert", screens.alert_card(alerts), True
         elif cards:
             self.showing_alert = False
-            _, build = cards[self.index % len(cards)]
+            name, build = cards[self.index % len(cards)]
             self.index += 1
             image = build()
         else:
@@ -126,7 +128,13 @@ class Dashboard:
         level = self.brightness()
         if status.get("madctl") != self.config.device.madctl or status.get("brightness") != level:
             self.device.set_lcd(madctl=self.config.device.madctl, brightness=level)
-        self.device.push(image)
+        # After a restart the device shows its own status screen, so send everything again.
+        previous = self.on_screen if status.get("has_frame") else None
+        self.on_screen = None
+        started = time.perf_counter()
+        sent = self.device.push(image, previous)
+        self.on_screen = image
+        log.info("%s: %s in %.0f ms", name, sent, (time.perf_counter() - started) * 1000)
 
     def run(self):
         log.info("pushing to %s every %ss", self.config.device.host, self.config.device.dwell_seconds)

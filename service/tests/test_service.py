@@ -102,6 +102,21 @@ class ScreensTest(unittest.TestCase):
         self.assertEqual(rgb565(image), bytes(expected))
 
 
+@unittest.skipUnless(FONTS, "DejaVu fonts not installed")
+class ThemeTest(unittest.TestCase):
+    def tearDown(self):
+        draw.set_theme("gradient")
+
+    def test_dark_theme_is_black_but_alerts_stay_red(self):
+        draw.set_theme("dark")
+        self.assertEqual(screens.clock_card(NOW).getpixel((239, 239)), (0, 0, 0))
+        self.assertGreater(screens.alert_card(["x"]).getpixel((239, 239))[0], 150)
+
+    def test_unknown_theme_is_rejected(self):
+        with self.assertRaises(ValueError):
+            draw.set_theme("neon")
+
+
 class FastPortTest(unittest.TestCase):
     def test_encoded_frame_round_trips(self):
         pixels = bytes(range(256)) * 450  # 115200 bytes

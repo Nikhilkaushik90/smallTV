@@ -16,6 +16,7 @@ class Device:
 @dataclass
 class Display:
     timezone: str = "UTC"
+    theme: str = "gradient"  # "gradient" or "dark" (black background)
     clock_24h: bool = False
     screens: list = field(default_factory=lambda: ["weather", "forecast", "clock", "hosts"])
     font_regular: str = f"{DEJAVU}/DejaVuSans.ttf"
@@ -101,6 +102,8 @@ def load(path):
         alerts=_build(Alerts, data.get("alerts", {}), "alerts"),
         hosts=[_build(Host, h, f"hosts.{i}") for i, h in enumerate(data.get("hosts", []))],
     )
+    if config.display.theme not in ("gradient", "dark"):
+        raise ValueError('[display] theme must be "gradient" or "dark"')
     bad = set(config.display.screens) - SCREENS
     if bad:
         raise ValueError(f"[display] screens: unknown {sorted(bad)}, choose from {sorted(SCREENS)}")
